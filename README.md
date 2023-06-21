@@ -1,21 +1,20 @@
 # PV_PNN
 
-* **Developed for:** David
+* **Developed for:** Tom
 * **Team:** Prochiantz
-* **Date:** November 2022
+* **Date:** June 2023
 * **Software:** Fiji
 
 
 
 ### Images description
 
-3D images taken with a x60 objective
+3D images taken on a spinning-disk with a x60 objective
 
-4 channels:
-  1. *Alexa Fluor 647:* PV cells
-  2. *Alexa Fluor 546:* PNN cells
-  3. *EGFP:* Gamma-H2AX
-  4. *Hoechst 33342:* DAPI nuclei
+3 channels:
+  1. *Alexa Fluor 647:* nuclei
+  2. *Alexa Fluor 546:* NeuN cells
+  3. *EGFP:* ORF1p cells
 
 ### Plugin description
 
