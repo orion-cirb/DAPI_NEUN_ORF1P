@@ -1,5 +1,4 @@
 
-
 import DAPI_NEUN_ORF1P_Tools.Cell;
 import DAPI_NEUN_ORF1P_Tools.Tools;
 import ij.*;
@@ -10,7 +9,11 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import loci.common.services.DependencyException;
@@ -24,6 +27,7 @@ import loci.plugins.util.ImageProcessorReader;
 import loci.plugins.in.ImporterOptions;
 import mcib3d.geom2.Objects3DIntPopulation;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang.StringUtils;
 import org.scijava.util.ArrayUtils;
 
 
@@ -35,54 +39,53 @@ import org.scijava.util.ArrayUtils;
  */
 public class DAPI_NEUN_ORF1P implements PlugIn {
     
-    Tools tools = new Tools();
-    
-    private String imageDir = "";
-    public String outDirResults = "";
-    public BufferedWriter cellsResults;
-    public BufferedWriter globalResults;
-   
+    Tools tools = new Tools();   
     
     public void run(String arg) {
         try {
-            if ((!tools.checkInstalledModules()) || (!tools.checkStarDistModels())) {
+            if ((!tools.checkInstalledModules())) {
                 return;
             } 
             
-            imageDir = IJ.getDirectory("Choose directory containing image files...");
+            String imageDir = IJ.getDirectory("Choose directory containing image files...");
             if (imageDir == null) {
                 return;
             }   
             // Find images with extension
             String fileExt = tools.findImageType(new File(imageDir));
-            ArrayList<String> imageFiles = tools.findImages(imageDir, fileExt);
+            ArrayList<String> imageFiles = new ArrayList();
+            tools.findImages(imageDir, fileExt, imageFiles);
             if (imageFiles == null) {
                 IJ.showMessage("Error", "No images found with " + fileExt + " extension");
                 return;
             }
             
             // Create output folder
-            outDirResults = imageDir + File.separator+ "Results" + File.separator;
+            DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
+            String outDirResults = imageDir + File.separator+ "Results_" + dateFormat.format(new Date()) + File.separator;
             File outDir = new File(outDirResults);
             if (!Files.exists(Paths.get(outDirResults))) {
                 outDir.mkdir();
             }
             
             // Write header in results files
-            String header = "Image name\tImage volume\tDAPI bg int mean\tDAPI bg int sd" +
-                            "\tNeuN bg int mean\tNeuN bg int sd\tORF1p bg int mean\tORF1p bg int sd" +
+            String header = "Parent folder\tImage name\tImage volume\tDAPI bg int median\tDAPI bg int mean\tDAPI bg int sd" +
+                            "\tNeuN bg int median\tNeuN bg int mean\tNeuN bg int sd" +
+                            "\tORF1p bg int median\tORF1p bg int mean\tORF1p bg int sd" +
                             "\tNb DAPI+\tNb DAPI+ NeuN+\tNb DAPI+ ORF1p+\tNb DAPI+ NeuN- ORF1p-" +
                             "\tNb DAPI+ NeuN+ ORF1p-\tNb DAPI+ NeuN- ORF1p+\tNb DAPI+ NeuN+ ORF1p+\n";
             FileWriter fwGlobalResults = new FileWriter(outDirResults + "globalResults.xls", false);
-            globalResults = new BufferedWriter(fwGlobalResults);
+            BufferedWriter globalResults = new BufferedWriter(fwGlobalResults);
             globalResults.write(header);
             globalResults.flush();
-            header = "Image name\tNuc label\tNuc area\tNuc circularity\tNuc DAPI int mean\tNuc DAPI int sd\t"+
+            header = "Parent folder\tImage name\tNuc label\tNuc volume\tNuc circularity\tNuc DAPI int mean\tNuc DAPI int sd\t"+
                      "Nuc NeuN int mean\tNuc NeuN int sd\tNuc ORF1p int mean\tNuc ORF1p int sd\t" +
-                     "is NeuN?\tNeuN area\tNeuN int mean\tNeuN int sd\tNeuN ORF1p int mean\tNeuN ORF1p int sd\t" +
-                     "is ORF1p?\tORF1p area\tORF1p int mean\tORF1p int sd\tORF1p NeuN int mean\tORF1p NeuN int sd\n";
+                     "is NeuN?\tNeuN volume\tNeuN int mean\tNeuN int sd\tNeuN ORF1p int mean\tNeuN ORF1p int sd\t" +
+                     "NeuN cyto volume\tNeuN cyto int mean\tNeuN cyto int sd\tNeuN cyto ORF1p int mean\tNeuN cyto ORF1p int sd\t" +
+                     "is ORF1p?\tORF1p volume\tORF1p int mean\tORF1p int sd\tORF1p NeuN int mean\tORF1p NeuN int sd\t" +
+                     "ORF1p cyto volume\tORF1p cyto int mean\tORF1p cyto int sd\tORF1p cyto NeuN int mean\tORF1p cyto NeuN int sd\n";
             FileWriter fwCellsResults = new FileWriter(outDirResults + "cellsResults.xls", false);
-            cellsResults = new BufferedWriter(fwCellsResults);
+            BufferedWriter cellsResults = new BufferedWriter(fwCellsResults);
             cellsResults.write(header);
             cellsResults.flush();
             
@@ -99,10 +102,10 @@ public class DAPI_NEUN_ORF1P implements PlugIn {
             tools.findImageCalib(meta);
             
             // Find channel names
-            String[] chsName = tools.findChannels(imageFiles.get(0), meta, reader);
+            String[] channels = tools.findChannels(imageFiles.get(0), meta, reader);
             
-            // Channels dialog
-            int[] channels = tools.dialog(chsName);
+            // Generate dialog box
+            String[] channelChoices = tools.dialog(channels);
             if (channels == null) {
                 IJ.showStatus("Plugin canceled");
                 return;
@@ -110,7 +113,8 @@ public class DAPI_NEUN_ORF1P implements PlugIn {
 
             for (String f : imageFiles) {
                 String rootName = FilenameUtils.getBaseName(f);
-                tools.print("--- ANALYZING IMAGE " + rootName + " ------");
+                String parentFolder = f.replace(imageDir, "").replace(FilenameUtils.getName(f), "");
+                tools.print("--- ANALYZING IMAGE " + parentFolder + rootName + " ------");
                 reader.setId(f);
                 
                 ImporterOptions options = new ImporterOptions();
@@ -121,64 +125,68 @@ public class DAPI_NEUN_ORF1P implements PlugIn {
                 
                 // Open DAPI channel
                 tools.print("- Analyzing DAPI channel -");
-                int indexCh = ArrayUtils.indexOf(chsName, channels[0]);
+                int indexCh = ArrayUtils.indexOf(channels, channelChoices[0]);
                 ImagePlus imgDAPI = BF.openImagePlus(options)[indexCh];
                 // Detect DAPI nuclei with CellPose
-                System.out.println("Finding DAPI nuclei...");
-                Objects3DIntPopulation dapiPop = tools.cellposeDetection(imgDAPI, true, tools.cellposeNucModel, 1, tools.cellposeNucDiam, tools.cellposeNucStitchThresh, tools.minNucVol, tools.maxNucVol, tools.minNucInt);
-                System.out.println(dapiPop.getNbObjects() + " DAPI nuclei found");
+                Objects3DIntPopulation dapiPop = tools.cellposeDetection(imgDAPI, true, tools.cellposeNucModel, 1, tools.cellposeNucDiam, tools.cellposeNucStitchThresh, tools.minNucVol, tools.maxNucVol);
 
                 // Open NeuN channel
                 tools.print("- Analyzing NeuN channel -");
-                indexCh = ArrayUtils.indexOf(chsName, channels[1]);
+                indexCh = ArrayUtils.indexOf(channels, channelChoices[1]);
                 ImagePlus imgNeun = BF.openImagePlus(options)[indexCh];
                 // Detect NeuN cells with CellPose
-                System.out.println("Finding NeuN cells...");
-                Objects3DIntPopulation neunPop = tools.cellposeDetection(imgNeun, true, tools.cellposeNeunModel, 1, tools.cellposeNeunDiam, tools.cellposeNeunStitchThresh, tools.minNeunVol, tools.maxNeunVol, tools.minNeunInt);
-                System.out.println(neunPop.getNbObjects() + " NeuN cells found");
+                Objects3DIntPopulation neunPop = tools.cellposeDetection(imgNeun, true, tools.cellposeNeunModel, 1, tools.cellposeNeunDiam, tools.cellposeNeunStitchThresh, tools.minNeunVol, tools.maxNeunVol);
                 
                 // Open ORF1p channel
                 tools.print("- Analyzing ORF1p channel -");
-                indexCh = ArrayUtils.indexOf(chsName, channels[2]);
+                indexCh = ArrayUtils.indexOf(channels, channelChoices[2]);
                 ImagePlus imgOrf1p = BF.openImagePlus(options)[indexCh];
                 // Detect NeuN cells with CellPose
-                System.out.println("Finding ORF1p cells...");
-                Objects3DIntPopulation orf1pPop = tools.cellposeDetection(imgOrf1p, true, tools.cellposeOrf1pModel, 1, tools.cellposeOrf1pDiam, tools.cellposeOrf1pStitchThresh, tools.minOrf1pVol, tools.maxOrf1pVol, tools.minOrf1pInt);
-                System.out.println(orf1pPop.getNbObjects() + " ORF1p cells found");
+                Objects3DIntPopulation orf1pPop = tools.cellposeDetection(imgOrf1p, true, tools.cellposeOrf1pModel, 1, tools.cellposeOrf1pDiam, tools.cellposeOrf1pStitchThresh, tools.minOrf1pVol, tools.maxOrf1pVol);
                
                 tools.print("- Colocalizing nuclei with NeuN and ORF1p cells -");
                 ArrayList<Cell> cells = tools.colocalization(dapiPop, neunPop, orf1pPop);
                 
-                /*tools.print("- Measuring cells parameters -");
-                tools.writeCellsParameters(cells, imgDAPI, imgNeun, imgOrf1p);
-               
-                // Detect ORF1p foci in ORF1p cells
-                System.out.println("Finding GFP foci in each nucleus....");
-                Objects3DIntPopulation gfpFociPop = tools.stardistFociInCellsPop(imgGFP, cells, "GFP", true);
+                tools.print("- Computing backgrounds statistics -");
+                HashMap<String, Double> bgStats = tools.getBackgroundStats(imgDAPI, imgNeun, imgOrf1p);
                 
-                // Save image objects
+                tools.print("- Measuring cells parameters -");
+                tools.writeCellsParameters(cells, imgDAPI, imgNeun, imgOrf1p, bgStats);
+                
+                // Draw results
                 tools.print("- Saving results -");
-                tools.drawResults(imgDAPI, imgPV, cells, gfpFociPop, dapiFociPop, rootName, outDirResults);
+                tools.drawResults(imgDAPI, cells, parentFolder, rootName, outDirResults);
                 
                 // Write results
-                for (Cell cell : cells) {
-                    results.write(rootName+"\t"+cell.params.get("label")+"\t"+cell.params.get("dapiBg")+"\t"+cell.params.get("nucVol")+"\t"+cell.params.get("nucIntTot")+
-                        "\t"+cell.params.get("nucIntTotCorr")+"\t"+cell.params.get("gfpBg")+"\t"+cell.params.get("nucGfpIntTot")+"\t"+cell.params.get("nucGfpIntTotCorr")+
-                        "\t"+cell.params.get("pvBg")+"\t"+cell.params.get("pvCellVol")+"\t"+cell.params.get("pvCellIntTot")+"\t"+cell.params.get("pvCellIntTotCorr")+
-                        "\t"+cell.params.get("pnnBg")+"\t"+cell.params.get("pnnCellVol")+"\t"+cell.params.get("pnnCellIntTot")+"\t"+cell.params.get("pnnCellIntTotCorr")+
-                        "\t"+cell.params.get("gfpFociNb")+"\t"+cell.params.get("gfpFociVolTot")+"\t"+cell.params.get("gfpFociIntTot")+
-                        "\t"+cell.params.get("gfpFociIntTotCorr")+"\t"+cell.params.get("dapiFociNb")+"\t"+cell.params.get("dapiFociVolTot")+"\t"+cell.params.get("dapiFociIntTot")+
-                        "\t"+cell.params.get("dapiFociIntTotCorr")+"\n");
-                    results.flush();
-                }*/
+                double imgVol = imgDAPI.getWidth() * imgDAPI.getHeight() * imgDAPI.getNSlices() * tools.pixelVol;
+                int[] nbCells = tools.countCells(cells);
+                globalResults.write(parentFolder+"\t"+rootName+"\t"+imgVol+"\t"+bgStats.get("dapiMedian")+"\t"+bgStats.get("dapiMean")+"\t"+bgStats.get("dapiSd")+
+                        "\t"+bgStats.get("neunMedian")+"\t"+bgStats.get("neunMean")+"\t"+bgStats.get("neunSd")+
+                        "\t"+bgStats.get("orf1pMedian")+"\t"+bgStats.get("orf1pMean")+"\t"+bgStats.get("orf1pSd")+
+                        "\t"+cells.size()+"\t"+nbCells[0]+"\t"+nbCells[1]+"\t"+nbCells[2]+"\t"+nbCells[3]+"\t"+nbCells[4]+"\t"+nbCells[5]+"\n");
+                globalResults.flush();              
                 
-                tools.flush_close(imgDAPI);
-                tools.flush_close(imgNeun);
-                tools.flush_close(imgOrf1p);
+                for (Cell cell : cells) {
+                    cellsResults.write(parentFolder+"\t"+rootName+"\t"+cell.params.get("label")+"\t"+cell.params.get("nucVol")+"\t"+cell.params.get("nucCirc")+
+                        "\t"+cell.params.get("nucIntMean")+"\t"+cell.params.get("nucIntSd")+"\t"+cell.params.get("nucIntMeanNeun")+
+                        "\t"+cell.params.get("nucIntSdNeun")+"\t"+cell.params.get("nucIntMeanOrf1p")+"\t"+cell.params.get("nucIntSdOrf1p")+
+                        "\t"+(cell.neun!=null)+"\t"+cell.params.get("neunVol")+"\t"+cell.params.get("neunIntMean")+"\t"+cell.params.get("neunIntSd")+
+                        "\t"+cell.params.get("neunIntMeanOrf1p")+"\t"+cell.params.get("neunIntSdOrf1p")+"\t"+cell.params.get("neunCytoVol")+
+                        "\t"+cell.params.get("neunCytoIntMean")+"\t"+cell.params.get("neunCytoIntSd")+"\t"+cell.params.get("neunCytoIntMeanOrf1p")+
+                        "\t"+cell.params.get("neunCytoIntSdOrf1p")+"\t"+(cell.orf1p!=null)+"\t"+cell.params.get("orf1pVol")+"\t"+cell.params.get("orf1pIntMean")+
+                        "\t"+cell.params.get("orf1pIntSd")+"\t"+cell.params.get("orf1pIntMeanNeun")+"\t"+cell.params.get("orf1pIntSdNeun")+
+                        "\t"+cell.params.get("orf1pCytoVol")+"\t"+cell.params.get("orf1pCytoIntMean")+"\t"+cell.params.get("orf1pCytoIntSd")+
+                        "\t"+cell.params.get("orf1pCytoIntMeanNeun")+"\t"+cell.params.get("orf1pCytoIntSdNeun")+"\n");
+                    cellsResults.flush();
+                }
+                
+                tools.closeImg(imgDAPI);
+                tools.closeImg(imgNeun);
+                tools.closeImg(imgOrf1p);
             }
         } catch (IOException | DependencyException | ServiceException | FormatException ex) {
             Logger.getLogger(DAPI_NEUN_ORF1P.class.getName()).log(Level.SEVERE, null, ex);
         }
-        tools.print("--- Process done ---");
+        tools.print("--- Analysis done ---");
     }    
 }    
