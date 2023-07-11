@@ -1,4 +1,4 @@
-# PV_PNN
+# DAPI_NEUN_ORF1P
 
 * **Developed for:** Tom
 * **Team:** Prochiantz
@@ -10,9 +10,9 @@
 3D images taken on a spinning-disk with a x40 objective
 
 3 channels:
-  1. *Alexa Fluor 647:* nuclei
-  2. *Alexa Fluor 546:* NeuN cells
-  3. *EGFP:* ORF1p cells
+  1. *CSU_405:* nuclei
+  2. *CSU_642:* NeuN cells
+  3. *CSU_561:* ORF1p cells
 
 ### Plugin description
 
