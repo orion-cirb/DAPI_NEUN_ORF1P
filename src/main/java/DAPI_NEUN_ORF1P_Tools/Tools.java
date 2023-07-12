@@ -377,7 +377,7 @@ public class Tools {
              
                 for (Object3DInt c1: cellPop1.getObjects3DInt()) {
                     double colocVal = coloc1.getValueObjectsPair(nucleus, c1);
-                    if (colocVal > 0.25*nucleus.size()) {
+                    if (colocVal > 0.5*nucleus.size()) {
                         Object3DInt cyto = new Object3DComputation​(c1).getObjectSubtracted(nucleus);
                         cell.setNeun(c1, cyto);
                         cellPop1.removeObject(c1);
@@ -387,7 +387,7 @@ public class Tools {
                 
                 for (Object3DInt c2: cellPop2.getObjects3DInt()) {
                     double colocVal = coloc2.getValueObjectsPair(nucleus, c2);
-                    if (colocVal > 0.25*nucleus.size()) {
+                    if (colocVal > 0.5*nucleus.size()) {
                         Object3DInt cyto = new Object3DComputation​(c2).getObjectSubtracted(nucleus);
                         cell.setOrf1p(c2, cyto);
                         cellPop2.removeObject(c2);
@@ -509,9 +509,10 @@ public class Tools {
         middlePlane.drawObject(planeImh, 255);
         ImagePlus planeImg = planeImh.getImagePlus();
         planeImg.setZ(middlePlane.getZPlane()+1);
+        IJ.setAutoThreshold(planeImg, "Default dark no-reset");
         
         ResultsTable rt = new ResultsTable();
-        ParticleAnalyzer pa = new ParticleAnalyzer(ParticleAnalyzer.CLEAR_WORKSHEET, Measurements.SHAPE_DESCRIPTORS, rt, 0, Double.MAX_VALUE);
+        ParticleAnalyzer pa = new ParticleAnalyzer(ParticleAnalyzer.CLEAR_WORKSHEET+ParticleAnalyzer.LIMIT, Measurements.SHAPE_DESCRIPTORS, rt, 0, Double.MAX_VALUE);
         pa.analyze(planeImg​);
         double circ = rt.getValue("Circ.", 0);
         
@@ -543,7 +544,7 @@ public class Tools {
         ImagePlus imgObjects = new RGBStackMerge().mergeHyperstacks(imgColors, true);
         imgObjects.setCalibration(cal);
         FileSaver ImgObjectsFile = new FileSaver(imgObjects);
-        ImgObjectsFile.saveAsTiff(outDir + parentFolder.replace("/", "_") + imageName + ".tif");
+        ImgObjectsFile.saveAsTiff(outDir + parentFolder.replace("/", "_").replace("\\", "_") + imageName + ".tif");
         
         closeImg(imgObj1.getImagePlus());
         closeImg(imgObj2.getImagePlus());
