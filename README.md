@@ -1,7 +1,7 @@
 # DAPI_NEUN_ORF1P
 
 * **Developed for:** Tom
-* **Team:** Prochiantz
+* **Team:** Fuchs
 * **Date:** July 2023
 * **Software:** Fiji
 
